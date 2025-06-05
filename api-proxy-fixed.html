@@ -1,223 +1,255 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <title>Figma Plugin API Proxy - Fixed v2.4.1</title>
     <meta charset="UTF-8">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Figma API Proxy v3.0.0</title>
     <style>
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
-            background: #f0f0f0;
         }
-        .loading {
+        .container {
             text-align: center;
-            padding: 20px;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #007acc;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 10px;
+        .status {
+            font-size: 1.2rem;
+            margin: 1rem 0;
+        }
+        .version {
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+        .spinning {
+            animation: spin 2s linear infinite;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        .version {
-            position: fixed;
-            top: 10px;
-            right: 10px;
-            font-size: 12px;
-            color: #666;
-            background: rgba(255,255,255,0.8);
-            padding: 5px;
-            border-radius: 3px;
-        }
     </style>
 </head>
 <body>
-    <div class="version">v2.4.1-fixed</div>
-    <div class="loading">
-        <div class="spinner"></div>
-        <p>正在处理API请求...</p>
+    <div class="container">
+        <h1>🚀 Figma API Proxy</h1>
+        <div class="version">v3.0.0-enhanced</div>
+        <div id="status" class="status">
+            <span class="spinning">⚙️</span> 正在初始化代理服务...
+        </div>
     </div>
 
     <script>
-        console.log('🌐 API代理页面v2.4.1已加载');
-        
-        // 定义多个CORS代理，按优先级排序
-        const CORS_PROXIES = [
-            {
-                name: 'proxy.cors.sh',
-                url: 'https://proxy.cors.sh/',
-                headers: {}
-            },
-            {
-                name: 'cors.bridged.cc', 
-                url: 'https://cors.bridged.cc/',
-                headers: {}
-            },
-            {
-                name: 'corsfix.com',
-                url: 'https://api.corsfix.com/',
-                headers: {
-                    'X-Cors-Api-Key': 'temp_key'
-                }
-            }
+        console.log('🚀 API代理v3.0.0已加载');
+
+        // 增强的代理服务列表
+        const ENHANCED_PROXY_SERVICES = [
+            'https://api.allorigins.win/get?url=',
+            'https://cors-anywhere.herokuapp.com/',
+            'https://proxy.cors.sh/',
+            'https://cors.bridged.cc/',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://thingproxy.freeboard.io/fetch/'
         ];
 
-        // 监听来自Figma插件的消息
-        window.addEventListener('message', async (event) => {
-            console.log('📨 收到消息v2.4.1:', event.data);
+        let requestQueue = [];
+        let isProcessing = false;
+
+        // 更新状态显示
+        function updateStatus(message, isError = false) {
+            const statusEl = document.getElementById('status');
+            if (isError) {
+                statusEl.innerHTML = `❌ ${message}`;
+                statusEl.style.color = '#ff6b6b';
+            } else {
+                statusEl.innerHTML = `✅ ${message}`;
+                statusEl.style.color = '#51cf66';
+            }
+        }
+
+        // 增强的代理请求函数
+        async function makeEnhancedProxyRequest(config) {
+            const { apiUrl, headers, body, method = 'POST' } = config;
             
-            if (event.data && event.data.type === 'API_REQUEST') {
-                console.log('🚀 开始处理API请求...');
+            console.log('🔄 开始增强代理请求:', { url: apiUrl, method });
+
+            for (let i = 0; i < ENHANCED_PROXY_SERVICES.length; i++) {
+                const proxyService = ENHANCED_PROXY_SERVICES[i];
+                const serviceName = new URL(proxyService).hostname;
                 
                 try {
-                    let result;
-                    
-                    // 智能检测消息格式
-                    if (event.data.apiUrl) {
-                        // 新格式：{type: 'API_REQUEST', apiUrl: '...', headers: {...}, body: {...}}
-                        console.log('✅ 检测到新格式消息');
-                        const { apiUrl, headers, body } = event.data;
-                        result = await processNewFormat(apiUrl, headers, body);
-                    } else if (event.data.payload) {
-                        // 旧格式：{type: 'API_REQUEST', payload: {...}}
-                        console.log('✅ 检测到旧格式消息');
-                        result = await processOldFormat(event.data.payload);
+                    console.log(`📡 尝试代理 ${i + 1}/${ENHANCED_PROXY_SERVICES.length}: ${serviceName}`);
+                    updateStatus(`尝试代理: ${serviceName}`);
+
+                    let proxyUrl, requestConfig;
+
+                    if (proxyService.includes('allorigins.win')) {
+                        // AllOrigins 需要特殊处理
+                        proxyUrl = `${proxyService}${encodeURIComponent(apiUrl)}`;
+                        requestConfig = {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' }
+                        };
+                    } else if (proxyService.includes('codetabs.com')) {
+                        // CodeTabs 代理
+                        proxyUrl = `${proxyService}${encodeURIComponent(apiUrl)}`;
+                        requestConfig = {
+                            method: 'GET',
+                            headers: { 'Content-Type': 'application/json' }
+                        };
                     } else {
-                        throw new Error('无效的消息格式：缺少apiUrl或payload');
+                        // 标准代理
+                        proxyUrl = `${proxyService}${apiUrl}`;
+                        requestConfig = {
+                            method: method,
+                            headers: {
+                                ...headers,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: method === 'POST' ? JSON.stringify(body) : undefined
+                        };
                     }
-                    
-                    // 发送成功响应
-                    sendSuccessResponse(result);
-                    
-                } catch (error) {
-                    console.error('❌ API请求失败:', error);
-                    sendErrorResponse(error.message);
-                }
-            }
-        });
 
-        // 处理新格式消息
-        async function processNewFormat(apiUrl, headers, body) {
-            console.log('🔄 处理新格式API请求:', { apiUrl });
-            return await makeProxyRequest(apiUrl, 'POST', headers, JSON.stringify(body));
-        }
-
-        // 处理旧格式消息
-        async function processOldFormat(payload) {
-            const { url, method, headers, body } = payload;
-            console.log('🔄 处理旧格式API请求:', { url, method });
-            return await makeProxyRequest(url, method || 'POST', headers || {}, body);
-        }
-
-        // 执行代理请求
-        async function makeProxyRequest(url, method, headers, body) {
-            console.log('🌐 开始代理请求:', { url, method });
-            
-            // 检查是否为OpenAI API
-            if (url.includes('api.openai.com')) {
-                console.log('🤖 检测到OpenAI API，直接请求...');
-                return await directRequest(url, method, headers, body);
-            }
-            
-            // 对于其他API（如Anthropic），使用CORS代理
-            console.log('🔧 使用CORS代理处理请求...');
-            let lastError = null;
-            
-            for (const proxy of CORS_PROXIES) {
-                try {
-                    console.log(`📡 尝试代理: ${proxy.name}`);
-                    
-                    const proxyUrl = proxy.url + url;
-                    const proxyHeaders = {
-                        ...headers,
-                        ...proxy.headers
-                    };
-                    
-                    const response = await fetch(proxyUrl, {
-                        method: method,
-                        headers: proxyHeaders,
-                        body: method !== 'GET' ? body : undefined
-                    });
+                    const response = await fetch(proxyUrl, requestConfig);
                     
                     if (response.ok) {
-                        const data = await response.json();
-                        console.log(`✅ ${proxy.name} 代理成功!`);
-                        return data;
+                        let responseData;
+                        
+                        if (proxyService.includes('allorigins.win')) {
+                            const allOriginsResponse = await response.json();
+                            responseData = JSON.parse(allOriginsResponse.contents);
+                        } else {
+                            responseData = await response.json();
+                        }
+                        
+                        console.log(`✅ ${serviceName} 代理成功!`);
+                        updateStatus(`代理成功: ${serviceName}`);
+                        
+                        return {
+                            success: true,
+                            data: responseData,
+                            proxyUsed: serviceName
+                        };
                     } else {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
+                    
                 } catch (error) {
-                    console.warn(`⚠️ ${proxy.name} 代理失败:`, error.message);
-                    lastError = error;
-                    continue;
+                    console.warn(`⚠️ ${serviceName} 代理失败:`, error.message);
+                    
+                    // 如果不是最后一个代理，继续尝试
+                    if (i < ENHANCED_PROXY_SERVICES.length - 1) {
+                        continue;
+                    }
                 }
             }
             
-            throw new Error(`所有代理都失败了。最后错误: ${lastError?.message}`);
+            // 所有代理都失败了
+            const errorMsg = '所有增强代理服务都不可用';
+            console.error(`❌ ${errorMsg}`);
+            updateStatus(errorMsg, true);
+            
+            return {
+                success: false,
+                error: errorMsg
+            };
         }
 
-        // 直接请求（用于OpenAI API）
-        async function directRequest(url, method, headers, body) {
-            const response = await fetch(url, {
-                method: method,
-                headers: headers,
-                body: method !== 'GET' ? body : undefined
-            });
+        // 处理队列中的请求
+        async function processRequestQueue() {
+            if (isProcessing || requestQueue.length === 0) return;
             
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            isProcessing = true;
+            
+            while (requestQueue.length > 0) {
+                const { config, resolve } = requestQueue.shift();
+                
+                try {
+                    const result = await makeEnhancedProxyRequest(config);
+                    resolve(result);
+                } catch (error) {
+                    resolve({
+                        success: false,
+                        error: error.message
+                    });
+                }
+                
+                // 添加延迟以避免请求过于频繁
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
             
-            return await response.json();
+            isProcessing = false;
         }
 
-        // 发送成功响应
-        function sendSuccessResponse(data) {
-            const response = {
-                type: 'API_RESPONSE',
-                success: true,
-                data: data
-            };
+        // 监听来自父页面的消息
+        window.addEventListener('message', async (event) => {
+            console.log('📨 收到消息v3.0.0:', event.data);
             
-            console.log('✅ 发送成功响应');
-            parent.postMessage(response, "*");
-        }
+            if (event.data.type === 'API_REQUEST') {
+                const { apiUrl, headers, body } = event.data;
+                
+                // 添加到请求队列
+                const requestPromise = new Promise((resolve) => {
+                    requestQueue.push({
+                        config: { apiUrl, headers, body },
+                        resolve
+                    });
+                });
+                
+                // 开始处理队列
+                processRequestQueue();
+                
+                try {
+                    const result = await requestPromise;
+                    
+                    // 发送响应回父页面
+                    parent.postMessage({
+                        type: 'API_RESPONSE',
+                        success: result.success,
+                        data: result.data,
+                        error: result.error,
+                        proxyUsed: result.proxyUsed
+                    }, '*');
+                    
+                } catch (error) {
+                    parent.postMessage({
+                        type: 'API_RESPONSE',
+                        success: false,
+                        error: error.message
+                    }, '*');
+                }
+            }
+        });
 
-        // 发送错误响应
-        function sendErrorResponse(errorMessage) {
-            const response = {
-                type: 'API_RESPONSE',
-                success: false,
-                error: errorMessage
-            };
+        // 初始化完成
+        setTimeout(() => {
+            updateStatus('代理服务已就绪');
+            console.log('✅ API代理v3.0.0准备就绪');
             
-            console.log('❌ 发送错误响应:', errorMessage);
-            parent.postMessage(response, "*");
-        }
-
-        // 页面加载完成后通知插件
-        window.addEventListener('load', () => {
-            console.log('✅ API代理v2.4.1准备就绪');
+            // 通知父页面代理已准备就绪
             parent.postMessage({
                 type: 'PROXY_READY',
-                version: 'v2.4.1',
-                message: 'API代理已准备就绪'
-            }, "*");
-        });
+                version: '3.0.0'
+            }, '*');
+        }, 1000);
+
+        // 定期清理状态
+        setInterval(() => {
+            if (requestQueue.length === 0 && !isProcessing) {
+                updateStatus('代理服务已就绪');
+            }
+        }, 5000);
+
     </script>
 </body>
-</html>
+</html> 
