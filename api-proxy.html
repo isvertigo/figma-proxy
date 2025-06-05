@@ -66,12 +66,21 @@
         window.addEventListener('message', async (event) => {
             console.log('📨 收到消息:', event.data);
             
-            const { type, payload } = event.data;
-            
-            if (type === 'API_REQUEST') {
+            if (event.data.type === 'API_REQUEST') {
                 try {
-                    const result = await makeAPIRequest(payload);
-                    sendResponse('API_RESPONSE', { success: true, data: result });
+                    // 检查是新格式还是旧格式
+                    if (event.data.apiUrl) {
+                        // 新格式：直接从event.data解构
+                        const { apiUrl, headers, body } = event.data;
+                        const result = await makeAPIRequestDirect(apiUrl, 'POST', headers, JSON.stringify(body), 'anthropic');
+                        sendResponse('API_RESPONSE', { success: true, data: result });
+                    } else if (event.data.payload) {
+                        // 旧格式：使用payload
+                        const result = await makeAPIRequest(event.data.payload);
+                        sendResponse('API_RESPONSE', { success: true, data: result });
+                    } else {
+                        throw new Error('消息格式不正确：缺少apiUrl或payload');
+                    }
                 } catch (error) {
                     console.error('❌ API请求失败:', error);
                     sendResponse('API_RESPONSE', { 
@@ -84,13 +93,61 @@
 
         // 发送响应回Figma插件
         function sendResponse(type, payload) {
+            // 直接发送格式（符合插件期望）
             parent.postMessage({
-                pluginMessage: { type, payload },
-                pluginId: "*"
+                type: type,
+                success: payload.success,
+                data: payload.data,
+                error: payload.error
             }, "*");
         }
 
-        // 使用多个代理尝试API请求
+        // 新的直接API请求函数（用于新消息格式）
+        async function makeAPIRequestDirect(url, method, headers, body, provider) {
+            console.log('🚀 开始API请求:', { url, provider });
+            
+            // 如果是OpenAI，直接请求（不需要代理）
+            if (provider === 'openai') {
+                return await directAPIRequest(url, method, headers, body);
+            }
+            
+            // 如果是Anthropic，使用代理
+            let lastError = null;
+            
+            for (const proxy of CORS_PROXIES) {
+                try {
+                    console.log(`🔄 尝试代理: ${proxy.name}`);
+                    
+                    const proxyUrl = proxy.url + url;
+                    const proxyHeaders = {
+                        ...headers,
+                        ...proxy.headers
+                    };
+                    
+                    const response = await fetch(proxyUrl, {
+                        method,
+                        headers: proxyHeaders,
+                        body: method !== 'GET' ? body : undefined
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log(`✅ ${proxy.name} 成功!`);
+                        return data;
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ ${proxy.name} 失败:`, error.message);
+                    lastError = error;
+                    continue;
+                }
+            }
+            
+            throw new Error(`所有代理都失败了。最后错误: ${lastError?.message}`);
+        }
+
+        // 使用多个代理尝试API请求（用于旧消息格式）
         async function makeAPIRequest(config) {
             const { url, method, headers, body, provider } = config;
             
@@ -155,7 +212,10 @@
         // 页面加载完成后通知插件
         window.addEventListener('load', () => {
             console.log('✅ API代理准备就绪');
-            sendResponse('PROXY_READY', { message: 'API代理已准备就绪' });
+            parent.postMessage({
+                type: 'PROXY_READY',
+                message: 'API代理已准备就绪'
+            }, "*");
         });
     </script>
 </body>
