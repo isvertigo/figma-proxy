@@ -94,18 +94,31 @@
                     let proxyUrl, requestConfig;
 
                     if (proxyService.includes('allorigins.win')) {
-                        // AllOrigins 需要特殊处理
-                        proxyUrl = `${proxyService}${encodeURIComponent(apiUrl)}`;
+                        // AllOrigins 需要特殊处理 - 通过GET请求包装POST数据
+                        const postData = {
+                            method: method,
+                            headers: headers,
+                            body: JSON.stringify(body)
+                        };
+                        proxyUrl = `${proxyService}${encodeURIComponent(apiUrl)}&method=POST&headers=${encodeURIComponent(JSON.stringify(headers))}&body=${encodeURIComponent(JSON.stringify(body))}`;
                         requestConfig = {
                             method: 'GET',
                             headers: { 'Content-Type': 'application/json' }
                         };
                     } else if (proxyService.includes('codetabs.com')) {
-                        // CodeTabs 代理
+                        // CodeTabs 代理 - 需要特殊的POST处理
                         proxyUrl = `${proxyService}${encodeURIComponent(apiUrl)}`;
                         requestConfig = {
-                            method: 'GET',
-                            headers: { 'Content-Type': 'application/json' }
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Requested-With': 'XMLHttpRequest'
+                            },
+                            body: JSON.stringify({
+                                method: method,
+                                headers: headers,
+                                body: body
+                            })
                         };
                     } else {
                         // 标准代理
@@ -126,8 +139,29 @@
                         let responseData;
                         
                         if (proxyService.includes('allorigins.win')) {
-                            const allOriginsResponse = await response.json();
-                            responseData = JSON.parse(allOriginsResponse.contents);
+                            try {
+                                const allOriginsResponse = await response.json();
+                                console.log('🔍 AllOrigins原始响应:', allOriginsResponse);
+                                
+                                // AllOrigins可能直接返回contents字符串，也可能返回JSON对象
+                                if (typeof allOriginsResponse.contents === 'string') {
+                                    responseData = JSON.parse(allOriginsResponse.contents);
+                                } else {
+                                    responseData = allOriginsResponse.contents || allOriginsResponse;
+                                }
+                            } catch (parseError) {
+                                console.warn('⚠️ AllOrigins响应解析失败，尝试直接使用:', parseError);
+                                responseData = await response.json();
+                            }
+                        } else if (proxyService.includes('codetabs.com')) {
+                            // CodeTabs可能需要特殊处理
+                            try {
+                                responseData = await response.json();
+                            } catch (parseError) {
+                                console.warn('⚠️ CodeTabs响应解析失败:', parseError);
+                                const text = await response.text();
+                                responseData = JSON.parse(text);
+                            }
                         } else {
                             responseData = await response.json();
                         }
