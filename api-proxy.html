@@ -141,16 +141,32 @@
                         if (proxyService.includes('allorigins.win')) {
                             try {
                                 const allOriginsResponse = await response.json();
-                                console.log('🔍 AllOrigins原始响应:', allOriginsResponse);
+                                console.log('🔍 AllOrigins完整响应:', JSON.stringify(allOriginsResponse, null, 2));
+                                console.log('🔍 AllOrigins.contents类型:', typeof allOriginsResponse.contents);
                                 
-                                // AllOrigins可能直接返回contents字符串，也可能返回JSON对象
-                                if (typeof allOriginsResponse.contents === 'string') {
-                                    responseData = JSON.parse(allOriginsResponse.contents);
+                                // AllOrigins返回格式: { contents: "...", status: {...} }
+                                if (allOriginsResponse.contents) {
+                                    if (typeof allOriginsResponse.contents === 'string') {
+                                        try {
+                                            responseData = JSON.parse(allOriginsResponse.contents);
+                                            console.log('✅ AllOrigins.contents JSON解析成功');
+                                        } catch (jsonError) {
+                                            console.warn('⚠️ AllOrigins.contents不是有效JSON，使用原始字符串');
+                                            responseData = { text: allOriginsResponse.contents };
+                                        }
+                                    } else {
+                                        responseData = allOriginsResponse.contents;
+                                        console.log('✅ AllOrigins.contents已是对象');
+                                    }
                                 } else {
-                                    responseData = allOriginsResponse.contents || allOriginsResponse;
+                                    console.warn('⚠️ AllOrigins响应中没有contents，使用整个响应');
+                                    responseData = allOriginsResponse;
                                 }
+                                
+                                console.log('🔍 最终responseData:', JSON.stringify(responseData, null, 2));
+                                
                             } catch (parseError) {
-                                console.warn('⚠️ AllOrigins响应解析失败，尝试直接使用:', parseError);
+                                console.error('❌ AllOrigins响应解析完全失败:', parseError);
                                 responseData = await response.json();
                             }
                         } else if (proxyService.includes('codetabs.com')) {
