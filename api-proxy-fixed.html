@@ -52,10 +52,8 @@
     <script>
         console.log('🚀 API代理v3.0.0已加载');
 
-        // 增强的代理服务列表
+        // 增强的代理服务列表 - 移除失败的代理，保留成功的
         const ENHANCED_PROXY_SERVICES = [
-            'https://api.allorigins.win/get?url=',
-            'https://cors-anywhere.herokuapp.com/',
             'https://proxy.cors.sh/',
             'https://cors.bridged.cc/',
             'https://api.codetabs.com/v1/proxy?quest=',
@@ -93,19 +91,7 @@
 
                     let proxyUrl, requestConfig;
 
-                    if (proxyService.includes('allorigins.win')) {
-                        // AllOrigins 需要特殊处理 - 通过GET请求包装POST数据
-                        const postData = {
-                            method: method,
-                            headers: headers,
-                            body: JSON.stringify(body)
-                        };
-                        proxyUrl = `${proxyService}${encodeURIComponent(apiUrl)}&method=POST&headers=${encodeURIComponent(JSON.stringify(headers))}&body=${encodeURIComponent(JSON.stringify(body))}`;
-                        requestConfig = {
-                            method: 'GET',
-                            headers: { 'Content-Type': 'application/json' }
-                        };
-                    } else if (proxyService.includes('codetabs.com')) {
+                    if (proxyService.includes('codetabs.com')) {
                         // CodeTabs 代理 - 需要特殊的POST处理
                         proxyUrl = `${proxyService}${encodeURIComponent(apiUrl)}`;
                         requestConfig = {
@@ -138,38 +124,7 @@
                     if (response.ok) {
                         let responseData;
                         
-                        if (proxyService.includes('allorigins.win')) {
-                            try {
-                                const allOriginsResponse = await response.json();
-                                console.log('🔍 AllOrigins完整响应:', JSON.stringify(allOriginsResponse, null, 2));
-                                console.log('🔍 AllOrigins.contents类型:', typeof allOriginsResponse.contents);
-                                
-                                // AllOrigins返回格式: { contents: "...", status: {...} }
-                                if (allOriginsResponse.contents) {
-                                    if (typeof allOriginsResponse.contents === 'string') {
-                                        try {
-                                            responseData = JSON.parse(allOriginsResponse.contents);
-                                            console.log('✅ AllOrigins.contents JSON解析成功');
-                                        } catch (jsonError) {
-                                            console.warn('⚠️ AllOrigins.contents不是有效JSON，使用原始字符串');
-                                            responseData = { text: allOriginsResponse.contents };
-                                        }
-                                    } else {
-                                        responseData = allOriginsResponse.contents;
-                                        console.log('✅ AllOrigins.contents已是对象');
-                                    }
-                                } else {
-                                    console.warn('⚠️ AllOrigins响应中没有contents，使用整个响应');
-                                    responseData = allOriginsResponse;
-                                }
-                                
-                                console.log('🔍 最终responseData:', JSON.stringify(responseData, null, 2));
-                                
-                            } catch (parseError) {
-                                console.error('❌ AllOrigins响应解析完全失败:', parseError);
-                                responseData = await response.json();
-                            }
-                        } else if (proxyService.includes('codetabs.com')) {
+                        if (proxyService.includes('codetabs.com')) {
                             // CodeTabs可能需要特殊处理
                             try {
                                 responseData = await response.json();
