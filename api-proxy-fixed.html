@@ -20,23 +20,56 @@
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 30px;
-            text-align: center;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .title {
+            font-size: 2.5em;
+            margin: 0;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .version {
+            font-size: 1.2em;
+            opacity: 0.8;
+            margin: 10px 0;
         }
         
         .status {
             display: inline-block;
-            background: #4CAF50;
-            color: white;
+            background: #4ade80;
             padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            margin: 10px 0;
+            border-radius: 25px;
+            font-weight: bold;
+            margin-top: 10px;
         }
         
-        .version {
-            color: #E8F5E8;
-            font-size: 18px;
+        .info-section {
+            margin: 25px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            border-left: 4px solid #4ade80;
+        }
+        
+        .info-title {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .code-block {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            word-break: break-all;
             margin: 10px 0;
         }
         
@@ -44,65 +77,85 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 15px;
-            margin: 20px 0;
+            margin-top: 25px;
         }
         
         .stat-item {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
             padding: 15px;
             border-radius: 10px;
+            text-align: center;
         }
         
         .stat-number {
-            font-size: 24px;
+            font-size: 1.8em;
             font-weight: bold;
+            color: #4ade80;
         }
         
         .stat-label {
-            font-size: 12px;
+            font-size: 0.9em;
             opacity: 0.8;
+            margin-top: 5px;
         }
-        
-        .log {
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 10px;
-            padding: 15px;
-            margin: 20px 0;
-            text-align: left;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
+
+        .logs {
             max-height: 200px;
             overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.8em;
+            margin-top: 15px;
         }
-        
+
         .log-entry {
             margin: 5px 0;
             padding: 2px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
-        
-        .log-success { color: #4CAF50; }
-        .log-error { color: #f44336; }
-        .log-info { color: #2196F3; }
+
+        .log-time {
+            color: #94a3b8;
+        }
+
+        .log-success {
+            color: #4ade80;
+        }
+
+        .log-error {
+            color: #f87171;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🚀 Figma API Proxy</h1>
-        <div class="version">v3.1.0-cors-fixed</div>
-        <div class="status">✅ 代理服务已就绪</div>
-        
+        <div class="header">
+            <h1 class="title">🚀 Figma API Proxy</h1>
+            <div class="version">v3.2.0-cors-bypass</div>
+            <div class="status">✅ 代理服务已就绪</div>
+        </div>
+
+        <div class="info-section">
+            <div class="info-title">📡 代理服务启动中...</div>
+            <div id="startup-logs">
+                <div>✅ PostMessage监听器已注册</div>
+                <div>🔗 CORS绕过代理已就绪</div>
+                <div>⏳ 等待API请求...</div>
+            </div>
+        </div>
+
         <div class="stats">
             <div class="stat-item">
-                <div class="stat-number" id="requestCount">0</div>
+                <div class="stat-number" id="total-requests">0</div>
                 <div class="stat-label">总请求数</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number" id="successCount">0</div>
+                <div class="stat-number" id="success-requests">0</div>
                 <div class="stat-label">成功请求</div>
             </div>
             <div class="stat-item">
-                <div class="stat-number" id="errorCount">0</div>
+                <div class="stat-number" id="failed-requests">0</div>
                 <div class="stat-label">失败请求</div>
             </div>
             <div class="stat-item">
@@ -110,197 +163,117 @@
                 <div class="stat-label">运行时间</div>
             </div>
         </div>
-        
-        <div class="log" id="logContainer">
-            <div class="log-entry log-info">📡 代理服务启动中...</div>
-            <div class="log-entry log-success">✅ PostMessage监听器已注册</div>
-            <div class="log-entry log-success">🔗 CORS绕过代理已就绪</div>
-            <div class="log-entry log-info">⏳ 等待API请求...</div>
+
+        <div class="info-section">
+            <div class="info-title">📋 实时日志</div>
+            <div class="logs" id="logs"></div>
         </div>
     </div>
 
     <script>
         // 统计数据
-        const stats = {
-            requestCount: 0,
-            successCount: 0,
-            errorCount: 0,
+        let stats = {
+            total: 0,
+            success: 0,
+            failed: 0,
             startTime: Date.now()
         };
 
-        // 日志系统
-        function addLog(message, type = 'info') {
-            const logContainer = document.getElementById('logContainer');
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry log-${type}`;
-            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-            
-            // 限制日志条目数量
-            const entries = logContainer.children;
-            if (entries.length > 50) {
-                logContainer.removeChild(entries[0]);
-            }
-        }
-
-        // 更新统计信息
+        // 更新统计显示
         function updateStats() {
-            document.getElementById('requestCount').textContent = stats.requestCount;
-            document.getElementById('successCount').textContent = stats.successCount;
-            document.getElementById('errorCount').textContent = stats.errorCount;
+            document.getElementById('total-requests').textContent = stats.total;
+            document.getElementById('success-requests').textContent = stats.success;
+            document.getElementById('failed-requests').textContent = stats.failed;
             
             const uptime = Math.floor((Date.now() - stats.startTime) / 1000);
-            document.getElementById('uptime').textContent = `${uptime}s`;
+            document.getElementById('uptime').textContent = uptime + 's';
         }
 
-        // 每秒更新运行时间
+        // 添加日志
+        function addLog(message, type = 'info') {
+            const logsContainer = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.innerHTML = `<span class="log-time">[${time}]</span> ${message}`;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        // 启动时间计时器
         setInterval(updateStats, 1000);
 
-        // **核心功能：处理PostMessage请求**
-        window.addEventListener('message', async function(event) {
-            // 验证消息来源和格式
-            if (!event.data || !event.data.type) {
-                return;
-            }
-            
-            stats.requestCount++;
-            updateStats();
-            
-            if (event.data.type === 'API_REQUEST') {
-                addLog(`📤 收到API请求: ${event.data.url}`, 'info');
-                await handleAPIRequest(event);
-            } else if (event.data.type === 'api-request') {
-                addLog(`📤 收到api-request: ${event.data.url}`, 'info');
-                await handleLegacyAPIRequest(event);
-            } else if (event.data.type === 'HEALTH_CHECK') {
-                handleHealthCheck(event);
-            }
-        });
-
-        // 处理现代API请求格式
-        async function handleAPIRequest(event) {
-            const { url, options = {}, id } = event.data;
-            
-            try {
-                const response = await fetch(url, {
-                    method: options.method || 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...options.headers
-                    },
-                    body: options.body
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                stats.successCount++;
-                updateStats();
-                addLog(`✅ API请求成功: ${response.status}`, 'success');
-                
-                // 发送成功响应
-                event.source.postMessage({
-                    type: 'API_RESPONSE',
-                    id: id,
-                    success: true,
-                    data: data,
-                    status: response.status
-                }, event.origin);
-                
-            } catch (error) {
-                stats.errorCount++;
-                updateStats();
-                addLog(`❌ API请求失败: ${error.message}`, 'error');
-                
-                // 发送错误响应
-                event.source.postMessage({
-                    type: 'API_RESPONSE',
-                    id: id,
-                    success: false,
-                    error: error.message
-                }, event.origin);
-            }
-        }
-
-        // 处理传统API请求格式
-        async function handleLegacyAPIRequest(event) {
-            const { url, headers = {}, body, method = 'POST' } = event.data;
-            
-            try {
-                const response = await fetch(url, {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...headers
-                    },
-                    body: typeof body === 'string' ? body : JSON.stringify(body)
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                stats.successCount++;
-                updateStats();
-                addLog(`✅ 传统API请求成功: ${response.status}`, 'success');
-                
-                // 发送成功响应
-                event.source.postMessage({
-                    success: true,
-                    data: data,
-                    status: response.status
-                }, event.origin);
-                
-            } catch (error) {
-                stats.errorCount++;
-                updateStats();
-                addLog(`❌ 传统API请求失败: ${error.message}`, 'error');
-                
-                // 发送错误响应
-                event.source.postMessage({
-                    success: false,
-                    error: error.message
-                }, event.origin);
-            }
-        }
-
-        // 健康检查
-        function handleHealthCheck(event) {
-            event.source.postMessage({
-                type: 'HEALTH_RESPONSE',
-                status: 'healthy',
-                stats: stats,
-                timestamp: Date.now()
-            }, event.origin);
-            
-            addLog('🔍 健康检查请求处理完成', 'info');
-        }
-
-        // 页面加载完成
-        window.addEventListener('load', () => {
-            addLog('🚀 代理服务完全就绪，等待iframe通信', 'success');
-        });
-
-        // 处理URL参数（兼容性）
-        function handleURLParams() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const target = urlParams.get('target');
-            
-            if (target) {
-                addLog(`⚠️ 检测到URL参数模式，建议使用PostMessage模式`, 'info');
-                addLog(`目标API: ${target}`, 'info');
-            }
-        }
-
-        handleURLParams();
+        // 启动日志
         addLog('📡 PostMessage监听器已注册', 'success');
         addLog('🔗 CORS绕过代理已就绪', 'success');
         addLog('⏳ 等待API请求...', 'info');
+        addLog('🚀 代理服务完全就绪，等待iframe通信', 'success');
+
+        // PostMessage监听器
+        window.addEventListener('message', async function(event) {
+            // 安全检查：确保消息来自Figma
+            if (!event.origin || !event.origin.includes('figma.com')) {
+                addLog(`❌ 拒绝来自 ${event.origin} 的请求`, 'error');
+                return;
+            }
+
+            const message = event.data;
+            
+            if (message && message.type === 'API_REQUEST') {
+                stats.total++;
+                updateStats();
+                
+                addLog(`📨 收到API请求: ${message.requestId}`, 'info');
+                addLog(`🎯 目标: ${message.url}`, 'info');
+                
+                try {
+                    // 使用传统CORS代理绕过限制
+                    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                    const response = await fetch(proxyUrl + message.url, {
+                        method: message.method || 'POST',
+                        headers: {
+                            ...message.headers,
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: message.body
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        stats.success++;
+                        
+                        addLog(`✅ 请求成功: ${message.requestId}`, 'success');
+                        
+                        // 发送成功响应
+                        event.source.postMessage({
+                            type: 'API_RESPONSE',
+                            requestId: message.requestId,
+                            success: true,
+                            data: data,
+                            status: response.status
+                        }, event.origin);
+                    } else {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                } catch (error) {
+                    stats.failed++;
+                    
+                    addLog(`❌ 请求失败: ${error.message}`, 'error');
+                    
+                    // 发送错误响应
+                    event.source.postMessage({
+                        type: 'API_RESPONSE',
+                        requestId: message.requestId,
+                        success: false,
+                        error: error.message
+                    }, event.origin);
+                }
+                
+                updateStats();
+            }
+        }, false);
+
+        addLog('👂 开始监听来自Figma的消息...', 'info');
     </script>
 </body>
 </html>
