@@ -89,7 +89,7 @@
 <body>
     <div class="container">
         <h1>🚀 Figma API Proxy</h1>
-        <div class="version">v3.0.0-enhanced</div>
+        <div class="version">v3.1.0-cors-fixed</div>
         <div class="status">✅ 代理服务已就绪</div>
         
         <div class="stats">
@@ -113,8 +113,8 @@
         
         <div class="log" id="logContainer">
             <div class="log-entry log-info">📡 代理服务启动中...</div>
-            <div class="log-entry log-success">✅ 消息监听器已注册</div>
-            <div class="log-entry log-success">🔗 CORS代理已就绪</div>
+            <div class="log-entry log-success">✅ PostMessage监听器已注册</div>
+            <div class="log-entry log-success">🔗 CORS绕过代理已就绪</div>
             <div class="log-entry log-info">⏳ 等待API请求...</div>
         </div>
     </div>
@@ -158,97 +158,38 @@
         // 每秒更新运行时间
         setInterval(updateStats, 1000);
 
-        // 处理URL参数形式的请求（传统模式）
-        async function handleURLRequest() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const targetUrl = urlParams.get('target');
-            const apiKey = urlParams.get('apiKey');
-            const body = urlParams.get('body');
-            
-            if (!targetUrl) {
-                return;
-            }
-
-            stats.requestCount++;
-            addLog(`📤 处理URL请求: ${targetUrl}`, 'info');
-
-            try {
-                const headers = {
-                    'Content-Type': 'application/json'
-                };
-
-                // 根据API类型设置相应的头部
-                if (targetUrl.includes('anthropic.com')) {
-                    headers['x-api-key'] = apiKey;
-                    headers['anthropic-version'] = '2023-06-01';
-                } else if (targetUrl.includes('openai.com')) {
-                    headers['Authorization'] = `Bearer ${apiKey}`;
-                }
-
-                const response = await fetch(targetUrl, {
-                    method: 'POST',
-                    headers: headers,
-                    body: body
-                });
-
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                stats.successCount++;
-                updateStats();
-                addLog(`✅ URL请求成功: ${response.status}`, 'success');
-                
-                // 通过postMessage发送响应
-                if (window.parent !== window) {
-                    window.parent.postMessage({
-                        type: 'API_RESPONSE',
-                        success: true,
-                        data: data,
-                        status: response.status
-                    }, '*');
-                }
-                
-            } catch (error) {
-                stats.errorCount++;
-                updateStats();
-                addLog(`❌ URL请求失败: ${error.message}`, 'error');
-                
-                if (window.parent !== window) {
-                    window.parent.postMessage({
-                        type: 'API_RESPONSE',
-                        success: false,
-                        error: error.message
-                    }, '*');
-                }
-            }
-        }
-
-        // 处理postMessage请求（现代模式）
+        // **核心功能：处理PostMessage请求**
         window.addEventListener('message', async function(event) {
-            // 验证消息格式
-            if (!event.data || event.data.type !== 'API_REQUEST') {
+            // 验证消息来源和格式
+            if (!event.data || !event.data.type) {
                 return;
             }
-
-            const { url, options = {}, id } = event.data;
             
             stats.requestCount++;
             updateStats();
-            addLog(`📤 处理PostMessage请求: ${url}`, 'info');
+            
+            if (event.data.type === 'API_REQUEST') {
+                addLog(`📤 收到API请求: ${event.data.url}`, 'info');
+                await handleAPIRequest(event);
+            } else if (event.data.type === 'api-request') {
+                addLog(`📤 收到api-request: ${event.data.url}`, 'info');
+                await handleLegacyAPIRequest(event);
+            } else if (event.data.type === 'HEALTH_CHECK') {
+                handleHealthCheck(event);
+            }
+        });
 
+        // 处理现代API请求格式
+        async function handleAPIRequest(event) {
+            const { url, options = {}, id } = event.data;
+            
             try {
-                // 准备请求头
-                const headers = {
-                    'Content-Type': 'application/json',
-                    ...options.headers
-                };
-
-                // 发起请求
                 const response = await fetch(url, {
                     method: options.method || 'POST',
-                    headers: headers,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
                     body: options.body
                 });
 
@@ -259,7 +200,7 @@
                 const data = await response.json();
                 stats.successCount++;
                 updateStats();
-                addLog(`✅ PostMessage请求成功: ${response.status}`, 'success');
+                addLog(`✅ API请求成功: ${response.status}`, 'success');
                 
                 // 发送成功响应
                 event.source.postMessage({
@@ -273,7 +214,7 @@
             } catch (error) {
                 stats.errorCount++;
                 updateStats();
-                addLog(`❌ PostMessage请求失败: ${error.message}`, 'error');
+                addLog(`❌ API请求失败: ${error.message}`, 'error');
                 
                 // 发送错误响应
                 event.source.postMessage({
@@ -283,54 +224,82 @@
                     error: error.message
                 }, event.origin);
             }
-        });
+        }
 
-        // CORS代理函数（直接fetch模式）
-        async function corsProxy(url, options = {}) {
+        // 处理传统API请求格式
+        async function handleLegacyAPIRequest(event) {
+            const { url, headers = {}, body, method = 'POST' } = event.data;
+            
             try {
                 const response = await fetch(url, {
-                    method: options.method || 'POST',
+                    method: method,
                     headers: {
                         'Content-Type': 'application/json',
-                        ...options.headers
+                        ...headers
                     },
-                    body: options.body
+                    body: typeof body === 'string' ? body : JSON.stringify(body)
                 });
 
-                return {
-                    ok: response.ok,
-                    status: response.status,
-                    statusText: response.statusText,
-                    data: await response.json()
-                };
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                stats.successCount++;
+                updateStats();
+                addLog(`✅ 传统API请求成功: ${response.status}`, 'success');
+                
+                // 发送成功响应
+                event.source.postMessage({
+                    success: true,
+                    data: data,
+                    status: response.status
+                }, event.origin);
+                
             } catch (error) {
-                throw new Error(`代理请求失败: ${error.message}`);
+                stats.errorCount++;
+                updateStats();
+                addLog(`❌ 传统API请求失败: ${error.message}`, 'error');
+                
+                // 发送错误响应
+                event.source.postMessage({
+                    success: false,
+                    error: error.message
+                }, event.origin);
             }
         }
 
-        // 暴露全局方法供外部调用
-        window.corsProxy = corsProxy;
+        // 健康检查
+        function handleHealthCheck(event) {
+            event.source.postMessage({
+                type: 'HEALTH_RESPONSE',
+                status: 'healthy',
+                stats: stats,
+                timestamp: Date.now()
+            }, event.origin);
+            
+            addLog('🔍 健康检查请求处理完成', 'info');
+        }
 
-        // 页面加载时处理URL参数
+        // 页面加载完成
         window.addEventListener('load', () => {
-            handleURLRequest();
-            addLog('🚀 代理服务完全就绪', 'success');
+            addLog('🚀 代理服务完全就绪，等待iframe通信', 'success');
         });
 
-        // 健康检查端点
-        window.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'HEALTH_CHECK') {
-                event.source.postMessage({
-                    type: 'HEALTH_RESPONSE',
-                    status: 'healthy',
-                    stats: stats,
-                    timestamp: Date.now()
-                }, event.origin);
+        // 处理URL参数（兼容性）
+        function handleURLParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const target = urlParams.get('target');
+            
+            if (target) {
+                addLog(`⚠️ 检测到URL参数模式，建议使用PostMessage模式`, 'info');
+                addLog(`目标API: ${target}`, 'info');
             }
-        });
+        }
 
-        addLog('📡 消息监听器已注册', 'success');
-        addLog('🔗 CORS代理已就绪', 'success');
+        handleURLParams();
+        addLog('📡 PostMessage监听器已注册', 'success');
+        addLog('🔗 CORS绕过代理已就绪', 'success');
         addLog('⏳ 等待API请求...', 'info');
     </script>
 </body>
