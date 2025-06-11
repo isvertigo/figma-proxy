@@ -63,16 +63,6 @@
             font-weight: bold;
         }
         
-        .code-block {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 15px;
-            border-radius: 8px;
-            font-family: 'Consolas', 'Monaco', monospace;
-            font-size: 0.9em;
-            word-break: break-all;
-            margin: 10px 0;
-        }
-        
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -126,13 +116,17 @@
         .log-error {
             color: #f87171;
         }
+
+        .log-info {
+            color: #60a5fa;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1 class="title">🚀 Figma API Proxy</h1>
-            <div class="version">v3.2.0-cors-bypass</div>
+            <div class="version">v3.3.0-origin-fixed</div>
             <div class="status">✅ 代理服务已就绪</div>
         </div>
 
@@ -209,33 +203,45 @@
         addLog('⏳ 等待API请求...', 'info');
         addLog('🚀 代理服务完全就绪，等待iframe通信', 'success');
 
-        // PostMessage监听器
+        // PostMessage监听器 - 修复后的版本
         window.addEventListener('message', async function(event) {
-            // 安全检查：确保消息来自Figma
-            if (!event.origin || !event.origin.includes('figma.com')) {
+            // 修复：允许来自Figma和自己域名的消息
+            const allowedOrigins = [
+                'https://www.figma.com',
+                'https://figma.com', 
+                'https://isvertigo.github.io'  // 允许自己域名的iframe消息
+            ];
+            
+            const isAllowedOrigin = allowedOrigins.some(origin => 
+                event.origin === origin || event.origin.endsWith('.figma.com')
+            );
+            
+            if (!isAllowedOrigin) {
                 addLog(`❌ 拒绝来自 ${event.origin} 的请求`, 'error');
                 return;
             }
 
+            addLog(`✅ 接受来自 ${event.origin} 的消息`, 'info');
+
             const message = event.data;
             
-            if (message && message.type === 'API_REQUEST') {
+            if (message && message.type === 'api-proxy-request') {
                 stats.total++;
                 updateStats();
                 
                 addLog(`📨 收到API请求: ${message.requestId}`, 'info');
-                addLog(`🎯 目标: ${message.url}`, 'info');
+                addLog(`🎯 目标: ${message.apiUrl}`, 'info');
                 
                 try {
                     // 使用传统CORS代理绕过限制
                     const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-                    const response = await fetch(proxyUrl + message.url, {
+                    const response = await fetch(proxyUrl + message.apiUrl, {
                         method: message.method || 'POST',
                         headers: {
                             ...message.headers,
                             'X-Requested-With': 'XMLHttpRequest'
                         },
-                        body: message.body
+                        body: typeof message.body === 'string' ? message.body : JSON.stringify(message.body)
                     });
 
                     if (response.ok) {
@@ -244,9 +250,9 @@
                         
                         addLog(`✅ 请求成功: ${message.requestId}`, 'success');
                         
-                        // 发送成功响应
+                        // 发送成功响应 - 修复：使用正确的origin
                         event.source.postMessage({
-                            type: 'API_RESPONSE',
+                            type: 'api-proxy-response',
                             requestId: message.requestId,
                             success: true,
                             data: data,
@@ -260,9 +266,9 @@
                     
                     addLog(`❌ 请求失败: ${error.message}`, 'error');
                     
-                    // 发送错误响应
+                    // 发送错误响应 - 修复：使用正确的origin
                     event.source.postMessage({
-                        type: 'API_RESPONSE',
+                        type: 'api-proxy-response',
                         requestId: message.requestId,
                         success: false,
                         error: error.message
